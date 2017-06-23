@@ -1,0 +1,7 @@
+Things to use from examples/simple/:
+	- Create a cluster with varying masses using "salpeter.py"
+	- Just evolve the cluster with "cluster.py" (gravitationally)
+	- Evolution of the stars, probably with SSE
+	- Maybe make an HIIregion, because why not, with "h2region.py"
+	  Will have to check if it interesting and if its compatible with more than 1 star.
+	- 
