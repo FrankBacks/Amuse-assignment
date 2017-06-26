@@ -1,7 +1,18 @@
 Things to use from examples/simple/:
 	- Create a cluster with varying masses using "salpeter.py"
 	- Just evolve the cluster with "cluster.py" (gravitationally)
-	- Evolution of the stars, probably with SSE
-	- Maybe make an HIIregion, because why not, with "h2region.py"
+	- Evolution of the stars, probably with SSE or SEBA? 
+	- Maybe make an HIIregion, because why not, with "h2region.py", probably not, scale struggles
 	  Will have to check if it interesting and if its compatible with more than 1 star.
-	- 
+	- Add gas? 
+	- Binaries would be cool, but  scales might mess things up (time scales)
+
+Plot stuff:
+	- Animation is currently in 3d, might be interesting to also make it possible to keep it 2d
+	- Now size is determined by mass, brightness would also be interesting if stellar evolution 
+	  is included. 
+	- If brightness (luminosity) determines size, maybe indicate mass with color? 
+	- Purely for ddistribution of star variable size might be unwanted. 
+	- In case of adding gas: how? plot it as a fill between like thing that changes alpha? 
+	- Star size is currently linearly dependent on mass, maybe ^0.333 would be more realistic
+	  This would also give more contrast between the stars. 
