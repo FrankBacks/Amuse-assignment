@@ -9,16 +9,19 @@ from make_animation import *
 
 from amuse.community.hermite0.interface import Hermite
 from amuse.community.huayno.interface import Huayno
+from amuse.community.bhtree.interface import BHTree
 
 from time import time as clock_time
+
+from amuse.community.sse.interface import SSE
 
 
 # No separate evolve file (for now)
 # from evolve.py import *
 
-def main_function(number_of_stars=1000, end_time=10.0 | nbody_system.time,
-                  steps=1000, number_of_workers=5, animate=True, save_animation=True,
-                  Q=0.5, D=2.6, filename="default.mp4", use_huayno=False):
+def main_function(number_of_stars=100, end_time=4.0e4 | units.yr,
+                  steps=100, number_of_workers=6, animate=True, save_animation=False,
+                  Q=0.5, D=2.6, filename="default.mp4", use_huayno=False, use_tree=False):
     """
     Simulates a cluster of stars with varying masses. 
     Input: 
@@ -39,18 +42,29 @@ def main_function(number_of_stars=1000, end_time=10.0 | nbody_system.time,
     start_time = clock_time()
 
     particles = new_cluster(number_of_stars=number_of_stars, Q=Q, D=D)
-    particles.scale_to_standard()
+    total_mass = particles.mass.sum()
+    convert_nbody = nbody_system.nbody_to_si(total_mass, 1.0 | units.parsec)
 
     # Initialize gravity
     if use_huayno:
-        gravity = Huayno(number_of_stars=number_of_stars)
+        gravity = Huayno(convert_nbody, number_of_workers=number_of_workers / 2)
+    elif use_tree:
+        gravity = BHTree(convert_nbody, number_of_workers=number_of_workers / 2, epsilon_squared=0.05 | nbody_system.length**2)
     else:
-        gravity = Hermite(number_of_workers=number_of_workers)
+        gravity = Hermite(convert_nbody, number_of_workers=number_of_workers / 2)
 
     gravity.parameters.epsilon_squared = 0.05 | nbody_system.length ** 2
     # gravity.parameters.epsilon_squared = 0.15 | nbody_system.length ** 2 # Used to be this
     gravity.particles.add_particles(particles)
     from_gravity_to_model = gravity.particles.new_channel_to(particles)
+
+    # particles.scale_to_standard() Cannot scale to standard if not using nbody_system units
+
+    # Initialize the Evolution
+    stellar_evolution = SSE(number_of_workers=number_of_workers / 2)
+    stellar_evolution.particles.add_particles(particles)
+    from_stellar_evolution_to_model = stellar_evolution.particles.new_channel_to(particles)
+    from_stellar_evolution_to_model.copy_attributes(["mass", "luminosity", "temperature"])
 
     # Initial time (note * end_time for correct units)
     time = 0.0 * end_time
@@ -58,18 +72,31 @@ def main_function(number_of_stars=1000, end_time=10.0 | nbody_system.time,
     # Save initial conditions and make arrays (lists) for each step
     total_energy_at_t0 = gravity.kinetic_energy + gravity.potential_energy
     save_positions = [particles.position]
+    save_velocities = [particles.velocity]
     save_masses = [particles.mass]
+    save_luminosities = [particles.luminosity]
+    save_temperatures = [particles.temperature]
     times = [time]
 
-    while time <= end_time:
+    while time < end_time:
         time += end_time / steps
 
+        # Evolve gravity
         gravity.evolve_model(time)
         from_gravity_to_model.copy()
 
+        # Evolve stars
+        stellar_evolution.evolve_model(time)
+
+        from_gravity_to_model.copy()
+        from_stellar_evolution_to_model.copy_attributes(["mass", "luminosity", "temperature"])
+
         # Save data
         save_positions.append(particles.position)
+        save_velocities.append(particles.velocity)
         save_masses.append(particles.mass)
+        save_luminosities.append(particles.luminosity)
+        save_temperatures.append(particles.temperature)
         times.append(time)
 
         total_energy = gravity.kinetic_energy + gravity.potential_energy
@@ -77,19 +104,40 @@ def main_function(number_of_stars=1000, end_time=10.0 | nbody_system.time,
             print("Warning! Total energy of the system is changing too significantly!")
 
         print "Time: %.4g" % time.number
+        total_mass = particles.mass.sum()
+        print total_mass
 
     gravity.stop()
-
+    stellar_evolution.stop()
+    print np.max(save_temperatures[-1].number)
     print "It took %.3g seconds clock time" % (clock_time() - start_time)
 
     if animate:
-        make_animation(save_positions, save_masses, times, save_animation=save_animation, filename=filename)
+        make_animation(save_positions, save_luminosities, save_temperatures,
+                       times, save_animation=save_animation, filename=filename)
 
-    return save_positions, times
+    return save_positions, save_velocities, times
 
 # callable form command line (only with default settings)
 # to run with different settings import it into a python environment (from main import *)
 if __name__ == "__main__":
-    main_function()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--number_of_stars", default=1000)
+    parser.add_argument("--number_of_workers", default=6)
+    parser.add_argument("--steps", default=1000)
+    parser.add_argument("--save_animation", default=False)
+    parser.add_argument("--end_time", default=4.e6)
+    parser.add_argument("--filename", default="default.mp4")
+    # parser.add_argument("", default=)
+    args = parser.parse_args()
+    print args
+    kwarg_dict = {"number_of_stars": int(args.number_of_stars),
+                  "number_of_workers": int(args.number_of_workers),
+                  "steps": int(args.steps),
+                  "save_animation": bool(args.save_animation),
+                  "end_time": float(args.end_time) | units.yr,
+                  "filename": str(args.filename)}
+    a = main_function(**kwarg_dict)
 
 
