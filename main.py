@@ -6,6 +6,7 @@ from amuse.units import nbody_system
 
 from initial_conditions import *
 from make_animation import *
+from escape_stars import *
 
 from amuse.community.hermite0.interface import Hermite
 from amuse.community.huayno.interface import Huayno
@@ -19,9 +20,9 @@ from amuse.community.sse.interface import SSE
 # No separate evolve file (for now)
 # from evolve.py import *
 
-def main_function(number_of_stars=100, end_time=4.0e4 | units.yr,
-                  steps=100, number_of_workers=6, animate=True, save_animation=False,
-                  Q=0.5, D=2.6, filename="default.mp4", use_huayno=False, use_tree=False):
+def main_function(number_of_stars=1000, end_time=4.0e4 | units.yr, steps=100, number_of_workers=6,
+                  animate=True, save_animation=False, escape=False, Q=0.5, D=2.6,
+                  filename="default.mp4", use_huayno=False, use_tree=False):
     """
     Simulates a cluster of stars with varying masses. 
     Input: 
@@ -45,11 +46,11 @@ def main_function(number_of_stars=100, end_time=4.0e4 | units.yr,
     total_mass = particles.mass.sum()
     convert_nbody = nbody_system.nbody_to_si(total_mass, 1.0 | units.parsec)
 
-    # Initialize gravity
+    # Initialize gravity can use others for tests, but hermite is used
     if use_huayno:
         gravity = Huayno(convert_nbody, number_of_workers=number_of_workers / 2)
     elif use_tree:
-        gravity = BHTree(convert_nbody, number_of_workers=number_of_workers / 2, epsilon_squared=0.05 | nbody_system.length**2)
+        gravity = BHTree(convert_nbody, number_of_workers=1, epsilon_squared=0.05 | nbody_system.length**2)
     else:
         gravity = Hermite(convert_nbody, number_of_workers=number_of_workers / 2)
 
@@ -61,7 +62,10 @@ def main_function(number_of_stars=100, end_time=4.0e4 | units.yr,
     # particles.scale_to_standard() Cannot scale to standard if not using nbody_system units
 
     # Initialize the Evolution
-    stellar_evolution = SSE(number_of_workers=number_of_workers / 2)
+    if not use_tree:
+        stellar_evolution = SSE(number_of_workers=number_of_workers / 2)
+    else:
+        stellar_evolution = SSE(number_of_workers=number_of_workers - 1)
     stellar_evolution.particles.add_particles(particles)
     from_stellar_evolution_to_model = stellar_evolution.particles.new_channel_to(particles)
     from_stellar_evolution_to_model.copy_attributes(["mass", "luminosity", "temperature"])
@@ -87,7 +91,6 @@ def main_function(number_of_stars=100, end_time=4.0e4 | units.yr,
 
         # Evolve stars
         stellar_evolution.evolve_model(time)
-
         from_gravity_to_model.copy()
         from_stellar_evolution_to_model.copy_attributes(["mass", "luminosity", "temperature"])
 
@@ -107,16 +110,20 @@ def main_function(number_of_stars=100, end_time=4.0e4 | units.yr,
         total_mass = particles.mass.sum()
         print total_mass
 
+    if escape:
+        escaped_stars_3d, escaped_stars_2d = find_escapees(particles)
+
     gravity.stop()
     stellar_evolution.stop()
-    print np.max(save_temperatures[-1].number)
     print "It took %.3g seconds clock time" % (clock_time() - start_time)
 
     if animate:
         make_animation(save_positions, save_luminosities, save_temperatures,
                        times, save_animation=save_animation, filename=filename)
-
-    return save_positions, save_velocities, times
+    if escape:
+        return save_positions[-1], save_velocities[-1], save_masses[-1], escaped_stars_3d, escaped_stars_2d
+    else:
+        return save_positions, save_velocities
 
 # callable form command line (only with default settings)
 # to run with different settings import it into a python environment (from main import *)
@@ -127,17 +134,27 @@ if __name__ == "__main__":
     parser.add_argument("--number_of_workers", default=6)
     parser.add_argument("--steps", default=1000)
     parser.add_argument("--save_animation", default=False)
-    parser.add_argument("--end_time", default=4.e6)
+    parser.add_argument("--end_time", default=4.e6)  # in years, unit added later
     parser.add_argument("--filename", default="default.mp4")
+    parser.add_argument("--use_tree", default=False)
+    parser.add_argument("--use_huayno", default=False)
+    parser.add_argument("--Q", default=0.5)
+    parser.add_argument("--D", default=2.6)
+    parser.add_argument("--escape", default=False)
     # parser.add_argument("", default=)
     args = parser.parse_args()
-    print args
+
     kwarg_dict = {"number_of_stars": int(args.number_of_stars),
                   "number_of_workers": int(args.number_of_workers),
                   "steps": int(args.steps),
                   "save_animation": bool(args.save_animation),
                   "end_time": float(args.end_time) | units.yr,
-                  "filename": str(args.filename)}
+                  "filename": str(args.filename),
+                  "use_tree": bool(args.use_tree),
+                  "use_huayno": bool(args.use_huayno),
+                  "Q": float(args.Q),
+                  "D": float(args.D),
+                  "escape": bool(args.escape)}
     a = main_function(**kwarg_dict)
 
 
