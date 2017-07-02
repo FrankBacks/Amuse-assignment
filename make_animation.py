@@ -31,11 +31,11 @@ def make_colors(temperatures):
     return zip(r, g, b)
 
 
-def update_animation(i, graph, save_positions, save_luminosities, save_temperatures):
+def update_animation(i, graph, time_text, save_positions, save_luminosities, save_temperatures, times):
     graph._offsets3d = (save_positions[i][:, 0].number, save_positions[i][:, 1].number, save_positions[0][:, 2].number)
-    # graph._sizes3d = np.array(save_luminosities[i].in_(units.LSun).number) * 10
     graph._sizes3d = (np.log10(save_luminosities[i].in_(units.J / units.s).number) - 22.)**2
     graph._colors3d = make_colors(save_temperatures[i].number)
+    time_text.set_text("t = %.3f Myr" % (times[i].number * 1.e-6))
     return graph
 
 
@@ -50,7 +50,9 @@ def make_animation(save_positions, save_luminosities, save_temperatures,
     sizes = (np.log10(save_luminosities[0].in_(units.J / units.s).number) - 23.)**2
     colors = make_colors(save_temperatures[0].number)
 
-    graph = ax.scatter(save_positions[0][:, 0].number, save_positions[0][:, 1].number, save_positions[0][:, 2].number,
+    graph = ax.scatter(save_positions[0][:, 0].number,
+                       save_positions[0][:, 1].number,
+                       save_positions[0][:, 2].number,
                        c=colors, s=sizes)
 
     lim = save_positions[0].number.max()
@@ -61,6 +63,9 @@ def make_animation(save_positions, save_luminosities, save_temperatures,
     ax.plot([lim - 3.0856e16, lim], [- 1.95 * lim, -1.95 * lim], [- 1.95 * lim, -1.95 * lim], c="white")
     ax.text(lim - 0.5 * 3.0856e16, -1.9 * lim, -1.9 * lim, "1 parsec", color="white", ha="center")
     ax.view_init(90, -90)
+
+    time_text = ax.text(1.95 * lim, 1.95 * lim, 1.95 * lim, "t = %.3f Myr" % (times[0].number * 1.e-6), color="white")
+
     # pc = lim / 3.0856e16
 
     plt.tight_layout()
@@ -68,9 +73,9 @@ def make_animation(save_positions, save_luminosities, save_temperatures,
     ani = animation.FuncAnimation(f,
                                   update_animation,
                                   frames=len(times),
-                                  fargs=(graph, save_positions, save_luminosities, save_temperatures),
+                                  fargs=(graph, time_text, save_positions, save_luminosities, save_temperatures, times),
                                   interval=20)
-
+    print save_animation
     if save_animation:
         ani.save(filename, writer="ffmpeg", bitrate=-1, codec="h264")
 

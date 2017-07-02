@@ -147,14 +147,15 @@ if __name__ == "__main__":
     kwarg_dict = {"number_of_stars": int(args.number_of_stars),
                   "number_of_workers": int(args.number_of_workers),
                   "steps": int(args.steps),
-                  "save_animation": bool(args.save_animation),
+                  "save_animation": bool(args.save_animation != "False" or args.save_animation is True),
                   "end_time": float(args.end_time) | units.yr,
                   "filename": str(args.filename),
-                  "use_tree": bool(args.use_tree),
-                  "use_huayno": bool(args.use_huayno),
+                  "use_tree": bool(args.use_tree != "False" or args.use_tree is True),
+                  "use_huayno": bool(args.use_huayno != "False" or args.use_huayno is True),
                   "Q": float(args.Q),
                   "D": float(args.D),
-                  "escape": bool(args.escape)}
+                  "escape": bool(args.escape != "False" or args.escape is True)}
+
     a = main_function(**kwarg_dict)
 
 
